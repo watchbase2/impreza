@@ -62,6 +62,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        self.view.flipX()  // 最初から反転させておく
         responceLabel.isHidden = true
         
         speedLabel.text = "0"
@@ -71,10 +72,13 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         
         auto()  // 連続的にデータを取得する
         
-        //displayData(nil)
+        //displayData("41 0D 2")
+        //displayData("5\r")
+        
+        //displayData("12.5V\r")
         //drawBattery(11.8)
         //drawFuel(55.0)  // 実際には冷却水温度
-        //drawRev(5200)
+        drawRev(2200)
         
     }
     
@@ -84,6 +88,8 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
     let CMD_WaterTemp = "0105\r"    // 冷却水温度
     let CMD_Boost = "010B\r"        //　ブースト圧
     let CMD_Throttle = "0111\r"     // スロットルポジション
+    let CMD_Fuel = "012F\r"         // 燃料
+    
     
     // 連続してコマンドを送信する
     @IBAction func auto() {
@@ -94,6 +100,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             
             if let peripheral = self.peripheral_POLE {
                 if let characteristic = self.charcteristic_POLE {
+                    
                     peripheral.readValue(for: characteristic)
                     self.statusPole.backgroundColor = .green
                 }
@@ -102,7 +109,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             if let peripheral = self.peripheral_OBD2 {
                 
                 if self.gotFuel && self.gotBattery {
-                    batteryCounter += 1
+                    batteryCounter -= 1
                     self.statusOBD2.backgroundColor = .green     // バッテリー電圧のチェックが済んだら グリーンにする
                 }else{
                     
@@ -112,7 +119,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                 if let characteristic = self.charcteristic_OBD2 {
                     
                     if batteryCounter > 0  {
-
+                        
                         let cmdRev = self.CMD_Revo.data(using: String.Encoding.utf8, allowLossyConversion:true)!
                         let cmdSpeed = self.CMD_Speed.data(using: String.Encoding.utf8, allowLossyConversion:true)!
               
@@ -123,7 +130,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                         batteryCounter = SUB_FREQUENCY
                         
                         let cmdBatt = self.CMD_Battery.data(using: String.Encoding.utf8, allowLossyConversion:true)!
-                        let cmdFuel = self.CMD_WaterTemp.data(using: String.Encoding.utf8, allowLossyConversion:true)!
+                        let cmdFuel = self.CMD_Fuel.data(using: String.Encoding.utf8, allowLossyConversion:true)!
               
                         peripheral.writeValue(cmdBatt, for: characteristic, type: .withResponse)
                         peripheral.writeValue(cmdFuel, for: characteristic, type: .withResponse)
@@ -145,7 +152,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         for pos in 0 ..< divide {
             let y = height - gap - step * Double(pos) + 10
             let imgView = UIImageView(frame: CGRect(x: 30, y: y, width: 70, height: step - 2))
-            imgView.backgroundColor = .gray
+            imgView.backgroundColor = UIColor(hex:"92FFFF", alpha: 0.2)
             self.view.addSubview(imgView)
             revoBar.append(imgView)
         }
@@ -202,7 +209,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                     imgView.backgroundColor = UIColor(hex: "83f64d")
                 }
             }else{
-                imgView.backgroundColor = .gray
+                imgView.backgroundColor = UIColor(hex:"92FFFF", alpha: 0.2)
                 
             }
         }
@@ -403,6 +410,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             displayMode = .SPEED_MODE
             peripheral_POLE = nil
             charcteristic_POLE = nil
+            speedLabel.text = "0"
             centralManager?.scanForPeripherals(withServices: [serviceUUID_POLE], options: nil)
         }
     }
@@ -485,6 +493,9 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             return
         }
     }
+    
+    var buf_odb2:String = ""
+    
     /// データ更新時に呼ばれる
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
 
@@ -506,15 +517,27 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         }else
         if characteristic.uuid.isEqual(charcteristicUUID_OBD2) {
             print("charcteristicUUID_OBD2から受信")
-            displayData(characteristic)
 
+            if let data = characteristic.value {
+                let str = String(data: data, encoding:String.Encoding.utf8) ?? ""
+                responceLabel.text = str
+         
+                displayData(str)
+
+            }
         }
     }
     
     func displayDistance(_ characteristic: CBCharacteristic?) {
         let data = characteristic!.value!
         let distance = Int(data[0]) + Int(data[1]) * 256
-            
+        
+        if distance == 999 {
+            // ポールとの通信ができていない
+            displayMode = .SPEED_MODE
+            speedLabel.textColor = UIColor(hex: "92FFFF")
+            return
+        }
         speedLabel.text = String(distance)
         if distance < distanceRed {
             speedLabel.textColor = .red
@@ -537,27 +560,21 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
     var type:dataType = .NONE
     
 
- func displayData(_ characteristic: CBCharacteristic?) {
+    func displayData(_ inStr:String) {
     
-    unitLabel.text = "km/h"
-    
-    var newStr:String!
-    
-    if characteristic == nil {
-        newStr = "0C\r41 0C 45 DE \r>\r41 0D 50\r"
-        newStr = "ATRV\r14.1V\r"
-    }else{
+        Log.writeWithTimestamp("\(inStr)\n")
         
-        let data = characteristic!.value!
-        newStr = String(data: data, encoding:String.Encoding.utf8) ?? ""
-        responceLabel.text = "write:\(newStr)"
-    }
- 
-    Log.write("\(newStr ?? "")\n")
-
-        var valueStr = ""
+        var displayStr = ""
         
-        let strArray = newStr.split(separator: "\r")
+        if inStr.suffix(1) == "\r" {
+            displayStr = buf_odb2 + inStr
+            buf_odb2 = ""
+        }else{
+            buf_odb2 = inStr
+            return
+        }
+        
+        let strArray = displayStr.split(separator: "\r")
     
         for str in strArray {
   
@@ -577,7 +594,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                 
                 if subArray[0] == "ATRV" {
                     
-                    if subArray.count > 0 {
+                    if subArray.count > 1 {
                         // RVの後ろに値が付いている
                         let revStr = String(strArray[1]).replacingOccurrences(of: "V", with: "")
                         
@@ -595,12 +612,11 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                     
                     switch subArray[1] {
                     case "0B":
-                        type = .BOOST
+                        type = .NONE
                         let value = (Int(subArray[2], radix: 16) ?? 0) / 100
-                        valueStr = String(value)
                         
                     case "0C":
-                        type = .REV
+                        type = .NONE
                         if subArray.count < 4 { break }
                         
                         let value = (Int(subArray[2] + subArray[3], radix: 16) ?? 0 ) / 4
@@ -609,24 +625,25 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                         
                     case "0D":
                         if displayMode == .SPEED_MODE {
-                            type = .SPEED
+                            type = .NONE
+                            unitLabel.text = "km/h"
                             let value = Int(subArray[2] , radix: 16) ?? 0
                             speedLabel.text = String(value)
                         }
                     case "05":
-                        type = .FUEL
+                        type = .NONE
                         let value = Int(subArray[2] , radix: 16) ?? 0
                         let fuel = Int(Double(value) * 100.0 / 255.0)
                         drawFuel(Double(fuel) )
                         gotFuel = true
-                    /*
+                    
                     case "2F":
-                        type = .FUEL
+                        type = .NONE
                         let value = Int(subArray[2] , radix: 16)!
                         let fuel = Int(Double(value) * 100.0 / 255.0)
                         drawFuel(Double(fuel) )
                         gotFuel = true
-                    */
+                    
                     default:
                         break
                     }
@@ -676,46 +693,18 @@ extension UIView {
     }
  }
 
-extension UIView {
-    
-    @IBInspectable var cornerRadius: CGFloat {
-        get {
-            return layer.cornerRadius
-        }
-        set {
-            layer.cornerRadius = newValue
-            layer.masksToBounds = newValue > 0
-        }
-    }
-    
-    @IBInspectable
-    var borderWidth: CGFloat {
-        get {
-            return self.layer.borderWidth
-        }
-        set {
-            self.layer.borderWidth = newValue
-        }
-    }
-    
-    @IBInspectable
-    var borderColor: UIColor? {
-        get {
-            return UIColor(cgColor: self.layer.borderColor!)
-        }
-        set {
-            self.layer.borderColor = newValue?.cgColor
-        }
-    }
-}
-
 class Log {
     private static let file = "log.csv"
 
     static func write(_ log: String) {
         writeToFile(file: file, text: log)
     }
-
+    
+    static func writeWithTimestamp(_ log: String) {
+        let dataWithLog = Util.formattedTime(Date())
+        writeToFile(file: file, text: dataWithLog)
+    }
+    
     private static func writeToFile(file: String, text: String) {
         guard let documentPath =
             FileManager.default.urls(for: .documentDirectory,

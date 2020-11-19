@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		726267FC25660BC6001B3296 /* UtilFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726267FB25660BC6001B3296 /* UtilFile.swift */; };
 		727CA7062560BA0D0055E740 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727CA7052560BA0D0055E740 /* AppDelegate.swift */; };
 		727CA7082560BA0D0055E740 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727CA7072560BA0D0055E740 /* SceneDelegate.swift */; };
 		727CA70A2560BA0D0055E740 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727CA7092560BA0D0055E740 /* ViewController.swift */; };
@@ -19,6 +20,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		726267FB25660BC6001B3296 /* UtilFile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UtilFile.swift; sourceTree = "<group>"; };
 		727CA7022560BA0D0055E740 /* SpeedMeter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpeedMeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		727CA7052560BA0D0055E740 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		727CA7072560BA0D0055E740 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -70,6 +72,7 @@
 				727CA7052560BA0D0055E740 /* AppDelegate.swift */,
 				727CA7072560BA0D0055E740 /* SceneDelegate.swift */,
 				727CA7092560BA0D0055E740 /* ViewController.swift */,
+				726267FB25660BC6001B3296 /* UtilFile.swift */,
 			);
 			path = SpeedMeter;
 			sourceTree = "<group>";
@@ -160,6 +163,7 @@
 				727CA70A2560BA0D0055E740 /* ViewController.swift in Sources */,
 				727CA7062560BA0D0055E740 /* AppDelegate.swift in Sources */,
 				727CA7082560BA0D0055E740 /* SceneDelegate.swift in Sources */,
+				726267FC25660BC6001B3296 /* UtilFile.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,6 +311,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 249BKC8UQ2;
 				INFOPLIST_FILE = SpeedMeter/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
@@ -327,6 +332,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 249BKC8UQ2;
 				INFOPLIST_FILE = SpeedMeter/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
