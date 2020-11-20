@@ -11,15 +11,20 @@ import CoreBluetooth
 
 class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDelegate  {
 
+    
+    @IBOutlet weak var speedBar: UIView!
     @IBOutlet weak var speedLabel: UILabel!
     @IBOutlet weak var responceLabel: UILabel!
     @IBOutlet weak var statusOBD2: UILabel!
-    @IBOutlet weak var statusPole: UILabel!
+    @IBOutlet weak var statusPOLE: UILabel!
     @IBOutlet weak var unitLabel: UILabel!
     @IBOutlet weak var fuelLabel: UILabel!
     @IBOutlet weak var batteryViewBack: UIView!
     @IBOutlet weak var batteryLabel: UILabel!
     @IBOutlet weak var fuelViewBack: UIView!
+    @IBOutlet weak var coolantViewBack: UIView!
+    @IBOutlet weak var coolantLabel: UILabel!
+    @IBOutlet weak var shiftPositionLabel: UILabel!
     
     
     enum DisplayMode: Int {
@@ -27,11 +32,26 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         case SPEED_MODE = 1
     }
     
+    let Color_Syan = UIColor(hex:"92FFFF", alpha:1.0)
+    let Color_SyanLabel = UIColor(hex:"92FFFF", alpha:0.6)
+    let Color_DarkSyan = UIColor(hex:"92FFFF", alpha:0.2)
+    let Color_Red = UIColor(hex:"FF0000", alpha:1.0)
+    let Color_Yellow = UIColor(hex:"FFFB00", alpha:1.0)
+    let Color_Orange = UIColor(hex:"FFB424", alpha:1.0)
+    let Color_Green = UIColor(hex:"7BF997", alpha:1.0)
+    let Color_Blue = UIColor(hex:"006FC3", alpha:1.0)
+    
+
+    
     var batteryView:UIView!
     var fuelView:UIView!
+    var coolantView:UIView!
+
     var displayMode = DisplayMode.SPEED_MODE    // POLEと接続できたら、DISTANCE_MODEとなり、距離を表示させる。切断された SPEED_MODE になる
     
     var revoBar:[UIImageView] = []
+    var revValue:Int = 0        // ログ記録用
+    var speedValue:Int = 0
     
     var centralManager: CBCentralManager!
     var isConnected = false
@@ -64,45 +84,88 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         
         self.view.flipX()  // 最初から反転させておく
         responceLabel.isHidden = true
+        statusOBD2.backgroundColor = Color_DarkSyan
+        statusPOLE.backgroundColor = Color_DarkSyan
         
         speedLabel.text = "0"
+        UIApplication.shared.isIdleTimerDisabled = false
+        
         createBar()
         centralManager = CBCentralManager(delegate: self, queue: nil)
         setup()
         
         auto()  // 連続的にデータを取得する
         
-        //displayData("41 0D 2")
-        //displayData("5\r")
-        
-        //displayData("12.5V\r")
-        //drawBattery(11.8)
-        //drawFuel(55.0)  // 実際には冷却水温度
-        drawRev(2200)
-        
+
+        /*
+        //shiftPositionLabel.text = "4"
+        displayData("41 0D 28\r")       // 車速   40km/h
+        displayData("41 0C 10 AC\r")    // エンジン回転
+        displayData("41 05 90\r")       // クーラント
+        displayData("ATRV\r")           // バッテリー
+        displayData("12.5V\r")
+      //  drawBattery(12.0)
+        drawFuel(55.0)
+        //drawRev(4000)
+       */
     }
     
     let CMD_Battery = "ATRV\r"      // バッテリー電圧
     let CMD_Speed = "010D\r"        // 車速
     let CMD_Revo = "010C\r"         // エンジン回転
-    let CMD_WaterTemp = "0105\r"    // 冷却水温度
+    let CMD_Coolant = "0105\r"    // 冷却水温度
     let CMD_Boost = "010B\r"        //　ブースト圧
     let CMD_Throttle = "0111\r"     // スロットルポジション
     let CMD_Fuel = "012F\r"         // 燃料
+    
+    let gearRatio = [3.60, 2.155, 1.516, 1.092, 0.842, 0.6657, 0.556]
+    let gearAdjust = 0.033
     
     
     // 連続してコマンドを送信する
     @IBAction func auto() {
         var batteryCounter = 0
-        let SUB_FREQUENCY = 60      // バッテリーを読み取る周期
+        let FREQUENCY = 0.2
+        let SUB_FREQUENCY = Int(1.0 / FREQUENCY * 10)     // バッテリーを読み取る周期 = 10秒になるように算出
+        var logCounter = 0
+        let LOG_FREQUENCY = Int(1.0 / FREQUENCY)           // ログの記録周期　＝ 1秒になるように算出
         
-        self.timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true, block: { _ in
+        var gearRange:[Double] = []
+        gearRange.append( (gearRatio[0]))
+        gearRange.append( (gearRatio[0] + gearRatio[1]) / 2.0 )
+        gearRange.append( (gearRatio[1] + gearRatio[2]) / 2.0 )
+        gearRange.append( (gearRatio[2] + gearRatio[3]) / 2.0 )
+        gearRange.append( (gearRatio[3] + gearRatio[4]) / 2.0 )
+        gearRange.append( (gearRatio[4] + gearRatio[5]) / 2.0 )
+        gearRange.append( (gearRatio[5] + gearRatio[6]) / 2.0 )
             
+        self.timer = Timer.scheduledTimer(withTimeInterval: FREQUENCY, repeats: true, block: { _ in
+            
+            logCounter += 1
+            
+            if logCounter > LOG_FREQUENCY {
+               // Log.write("\(self.speedValue) , \(self.revValue)\n")
+                logCounter = 0
+            }
+            
+            if self.speedValue == 0 {
+                self.shiftPositionLabel.text = "0"
+            }else{
+                let ratio = Double(self.revValue) / Double(self.speedValue) * self.gearAdjust
+     
+                for shift in 0..<7 {
+                    if ratio > gearRange[shift] {
+                        self.shiftPositionLabel.text = String(shift)  // Neutral を "N"と表示させようとしたが"n"と表示されるため採用せず、"0" を採用した。
+                        break
+                    }
+                }
+            }
+
             if let peripheral = self.peripheral_POLE {
                 if let characteristic = self.charcteristic_POLE {
                     
                     peripheral.readValue(for: characteristic)
-                    self.statusPole.backgroundColor = .green
+                    
                 }
             }
             
@@ -110,10 +173,10 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                 
                 if self.gotFuel && self.gotBattery {
                     batteryCounter -= 1
-                    self.statusOBD2.backgroundColor = .green     // バッテリー電圧のチェックが済んだら グリーンにする
+                    self.statusOBD2.backgroundColor = self.Color_Green     // バッテリー電圧のチェックが済んだら グリーンにする
                 }else{
                     
-                    self.statusOBD2.backgroundColor = .yellow
+                    self.statusOBD2.backgroundColor = self.Color_Yellow
                 }
                 
                 if let characteristic = self.charcteristic_OBD2 {
@@ -127,44 +190,47 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                         peripheral.writeValue(cmdSpeed, for: characteristic, type: .withResponse)
                         
                     }else{
+                        // SUB_FREQUENCYで定義されている回数分の1回の割合でバッテリー電圧と燃料残量を読み取る
                         batteryCounter = SUB_FREQUENCY
                         
                         let cmdBatt = self.CMD_Battery.data(using: String.Encoding.utf8, allowLossyConversion:true)!
                         let cmdFuel = self.CMD_Fuel.data(using: String.Encoding.utf8, allowLossyConversion:true)!
-              
+                        let cmdCoolant = self.CMD_Coolant.data(using: String.Encoding.utf8, allowLossyConversion:true)!
                         peripheral.writeValue(cmdBatt, for: characteristic, type: .withResponse)
                         peripheral.writeValue(cmdFuel, for: characteristic, type: .withResponse)
+                        peripheral.writeValue(cmdCoolant, for: characteristic, type: .withResponse)
 
                     }
                 }
             }
         })
-    
     }
     
     
     func createBar() {
         let height:Double = Double(self.view.bounds.height)
-        let gap:Double = 24     // 上下のギャップ　（文字の高さの半分は開けておく必要がある）
+        let gap:Double = 30    // 上下のギャップ　（文字の高さの半分は開けておく必要がある）
         
         let step:Double = (height  - gap) / Double(divide)
         
+        // バーを描画
         for pos in 0 ..< divide {
             let y = height - gap - step * Double(pos) + 10
-            let imgView = UIImageView(frame: CGRect(x: 30, y: y, width: 70, height: step - 2))
-            imgView.backgroundColor = UIColor(hex:"92FFFF", alpha: 0.2)
+            let imgView = UIImageView(frame: CGRect(x: 32, y: y, width: 68, height: step - 2))
+            imgView.backgroundColor = Color_DarkSyan
             self.view.addSubview(imgView)
             revoBar.append(imgView)
         }
         
+        //　ラベルを描画
         var speed = 0
         let revStep:Double = (height  - gap) / Double(revMax)
         while speed <= revMax {
-            let y = height - gap - revStep * Double(speed)
+            let y = height - gap - revStep * Double(speed) + 4
             let labelView = UILabel(frame: CGRect(x: 0, y: y, width: 25, height: 24))
             labelView.text = String(speed/1000)
             labelView.font = UIFont.systemFont(ofSize: 32, weight: .heavy)
-            labelView.textColor = UIColor(red: 0xFF/255, green: 0xB4/255, blue: 0x24/255, alpha: 0.8)
+            labelView.textColor = Color_Syan
             self.view.addSubview(labelView)
             speed += 1000
         }
@@ -185,6 +251,14 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         frame.origin.y = frame.origin.y
         fuelView = UIView(frame: frame)
         self.view.addSubview(fuelView)
+        //
+        frame = coolantViewBack.frame
+        frame.size.width = frame.size.width
+        frame.size.height = frame.size.height
+        frame.origin.x = frame.origin.x
+        frame.origin.y = frame.origin.y
+        coolantView = UIView(frame: frame)
+        self.view.addSubview(coolantView)
     }
     
     func drawRev(_ value:Int) {
@@ -195,21 +269,21 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         let redStep = revRed / divSpeed
         let step = value / divSpeed
         
+        var color = Color_Orange    //Color_Syan
+        
+        if step > redStep {
+            color = Color_Red
+        }else if step > yellowStep {
+            color = Color_Yellow
+        }
         for pos in 0 ..< div {
             let imgView = revoBar[pos]
             
             if pos < step {
-                if pos > redStep {
-                    imgView.backgroundColor = .red
-                    
-                }else if pos > yellowStep {
-                    imgView.backgroundColor = .yellow
-                    
-                }else{
-                    imgView.backgroundColor = UIColor(hex: "83f64d")
-                }
+                imgView.backgroundColor = color
+
             }else{
-                imgView.backgroundColor = UIColor(hex:"92FFFF", alpha: 0.2)
+                imgView.backgroundColor = Color_DarkSyan
                 
             }
         }
@@ -223,41 +297,65 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         let max = 13.0
         
         var newValue = value
-        if newValue > 14.0 { newValue = 14.0 }
-        var frame = batteryView.frame
+        if newValue > max { newValue = max }
+        if newValue < min { newValue = min }
+        
+        var frame = batteryViewBack.frame
         
         let width:CGFloat = CGFloat((newValue - min) / (max - min) * Double(frame.size.width))
         frame.size.width = width
         batteryView.frame = frame
         
         if value < 12.0 {
-            batteryView.backgroundColor = UIColor.red
+            batteryView.backgroundColor = Color_Red
         }else if value < 12.3 {
-            batteryView.backgroundColor = UIColor.yellow
+            batteryView.backgroundColor = Color_Yellow
         }else{
-            batteryView.backgroundColor = UIColor(hex: "83f64d")
+            batteryView.backgroundColor = Color_Green
         }
     }
   
     func drawFuel(_ value:Double) {
         
-        fuelLabel.text = String(value)
+        fuelLabel.text = String(Int(value))
         
         let min = 0.0
         let max = 100.0
         
-        var frame = fuelView.frame
+        var frame = fuelViewBack.frame
         
         let width:CGFloat = CGFloat((value - min) / (max - min) * Double(frame.size.width))
         frame.size.width = width
         fuelView.frame = frame
         
         if value < 10.0 {
-            fuelView.backgroundColor = UIColor.red
-        }else if value < 50.0 {
-            fuelView.backgroundColor = UIColor.yellow
+            fuelView.backgroundColor = Color_Red
+        }else if value < 30.0 {
+            fuelView.backgroundColor = Color_Yellow
         }else{
-            fuelView.backgroundColor = UIColor(hex: "83f64d")
+            fuelView.backgroundColor = Color_Green
+        }
+    }
+    
+    func drawCoolant(_ value:Double) {
+        
+        coolantLabel.text = String(Int(value))
+        
+        let min = -40.0
+        let max = 120.0
+        
+        var frame = coolantViewBack.frame
+        
+        let width:CGFloat = CGFloat((value - min) / (max - min) * Double(frame.size.width))
+        frame.size.width = width
+        coolantView.frame = frame
+        
+        if value > 100.0 {
+            coolantView.backgroundColor = Color_Red
+        }else if value > 90.0 {
+            coolantView.backgroundColor = Color_Yellow
+        }else{
+            coolantView.backgroundColor = Color_Green
         }
     }
     
@@ -393,10 +491,11 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         central.connect(peripheral, options: nil)
     }
 
+    
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         
         if peripheral.name == "OBDBLE" {
-            self.statusOBD2.backgroundColor = .darkGray
+            self.statusOBD2.backgroundColor = Color_DarkSyan
             peripheral_OBD2 = nil
             charcteristic_OBD2 = nil
             centralManager?.scanForPeripherals(withServices: [serviceUUID_OBD2], options: nil)
@@ -406,7 +505,13 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             UIApplication.shared.isIdleTimerDisabled = false     // スリープタイマーをオンにする
             
         }else if peripheral.name == "POLE" {
-            self.statusPole.backgroundColor = .darkGray
+            self.statusPOLE.backgroundColor = Color_DarkSyan
+            if self.charcteristic_OBD2 == nil {
+                speedLabel.textColor = Color_DarkSyan
+                speedLabel.text = "---"
+            }else{
+                speedLabel.textColor = Color_Syan
+            }
             displayMode = .SPEED_MODE
             peripheral_POLE = nil
             charcteristic_POLE = nil
@@ -507,11 +612,8 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         if characteristic.uuid.isEqual(charcteristicUUID_POLE) {
             
             if characteristic.uuid.isEqual(charcteristicUUID_POLE) {
-                print("charcteristicUUID_POLEから受信")
                 
-                if displayMode == .DISTANCE_MODE {     // センサーポールとの距離表示
-                    displayDistance(characteristic)
-                }
+                displayDistance(characteristic)
             }
             
         }else
@@ -530,19 +632,30 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
     
     func displayDistance(_ characteristic: CBCharacteristic?) {
         let data = characteristic!.value!
-        let distance = Int(data[0]) + Int(data[1]) * 256
+        var distance = Int(data[0]) + Int(data[1]) * 256
+        
+        print("charcteristicUUID_POLEから受信: \(distance)")
         
         if distance == 999 {
-            // ポールとの通信ができていない
-            displayMode = .SPEED_MODE
-            speedLabel.textColor = UIColor(hex: "92FFFF")
+            // コントローラと通信はできているがポールからデータを受け取れていない
+            
+            if displayMode == .DISTANCE_MODE {
+                displayMode = .SPEED_MODE
+                speedLabel.textColor = Color_DarkSyan
+                self.statusPOLE.backgroundColor = Color_Yellow
+            }
             return
         }
+        
+        if distance > 300 { distance = 333 }
+        displayMode = .DISTANCE_MODE
+        
+        self.statusPOLE.backgroundColor = Color_Green
         speedLabel.text = String(distance)
         if distance < distanceRed {
-            speedLabel.textColor = .red
+            speedLabel.textColor = Color_Red
         }else{
-            speedLabel.textColor = UIColor(hex: "92FFFF")
+            speedLabel.textColor = Color_Syan
         }
         unitLabel.text = "cm"
     }
@@ -554,22 +667,34 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
         case REV = 3
         case SPEED = 4
         case FUEL = 5
+        case COOLANT = 6
         case ERROR = 99
     }
     
     var type:dataType = .NONE
     
-
+    /*
+     OBD2からのレスポンスはコマンドの識別子に続いて値が返ってくる。
+     例えば、バッテーリ電圧を得るために"ATRV"コマンドを送信した場合、
+        "ATRV\r12.5V\r\r>"
+     のように返ってくる。しかし、このようにまとまって返ってくるのではなく、
+        "ATRV\r", "12.5V\r\r>"
+     のように分割されて返ってくるケースがある。
+     
+     */
+    
     func displayData(_ inStr:String) {
     
         Log.writeWithTimestamp("\(inStr)\n")
         
         var displayStr = ""
         
-        if inStr.suffix(1) == "\r" {
+        if inStr.suffix(1) == "\r" || inStr.suffix(1) == ">" {
+            // データも含めて返ってきたので表示する
             displayStr = buf_odb2 + inStr
             buf_odb2 = ""
         }else{
+            //　コマンドは返ってきたが、値が含まれていないので次のデータを待つ
             buf_odb2 = inStr
             return
         }
@@ -582,12 +707,20 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
             if subArray.count == 0 { continue }
             
             if type == .BATTERY {
-                let revStr = String(strArray[0]).replacingOccurrences(of: "V", with: "")
+                let str = String(strArray[0]).replacingOccurrences(of: "V", with: "")
+                let bat = Double(str) ?? 0.0
+                if bat == 0 {
+                    // 数字以外のものを受けた
+                    if str.contains(">") {
+                        type = .NONE        // リセット
+                    }
+                    
+                }else{
+                    drawBattery(bat)
+                    gotBattery = true
+                    type = .NONE
+                }
                 
-                drawBattery(Double(revStr) ?? 0.0)
-                gotBattery = true
-                
-                type = .NONE
             }
             else
             if type == .NONE {
@@ -611,33 +744,36 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                     UIApplication.shared.isIdleTimerDisabled = true     // エンジンがかかっているのでスリープさせない
                     
                     switch subArray[1] {
-                    case "0B":
+                    
+                    case "05":  // Coolant Temp.
                         type = .NONE
-                        let value = (Int(subArray[2], radix: 16) ?? 0) / 100
+                        let value = Int(subArray[2] , radix: 16) ?? 0   // Scale -40 to 215
+                        let coolant = Double(value - 40)
+                        drawCoolant(coolant)
                         
-                    case "0C":
+                    case "0B":  //  Boost Pressure
+                        type = .NONE
+                        //let value = (Int(subArray[2], radix: 16) ?? 0) / 100
+                        
+                    case "0C":  // Engine Revolution
                         type = .NONE
                         if subArray.count < 4 { break }
                         
                         let value = (Int(subArray[2] + subArray[3], radix: 16) ?? 0 ) / 4
-                        
+                        revValue = value
                         drawRev(value)
                         
-                    case "0D":
+                    case "0D":  // Vehicle Speed
                         if displayMode == .SPEED_MODE {
                             type = .NONE
                             unitLabel.text = "km/h"
                             let value = Int(subArray[2] , radix: 16) ?? 0
                             speedLabel.text = String(value)
+                            speedValue = value
+                            speedLabel.textColor = Color_Syan
                         }
-                    case "05":
-                        type = .NONE
-                        let value = Int(subArray[2] , radix: 16) ?? 0
-                        let fuel = Int(Double(value) * 100.0 / 255.0)
-                        drawFuel(Double(fuel) )
-                        gotFuel = true
-                    
-                    case "2F":
+
+                    case "2F":  // Fuel
                         type = .NONE
                         let value = Int(subArray[2] , radix: 16)!
                         let fuel = Int(Double(value) * 100.0 / 255.0)
@@ -653,7 +789,7 @@ class ViewController: UIViewController, CBPeripheralDelegate, CBCentralManagerDe
                     
                     type = .ERROR
                     gotBattery = false
-                    //gotFuel = false
+                    gotFuel = false
                     UIApplication.shared.isIdleTimerDisabled = false     // スリープタイマーをオンにする
 
                     /*
@@ -701,7 +837,7 @@ class Log {
     }
     
     static func writeWithTimestamp(_ log: String) {
-        let dataWithLog = Util.formattedTime(Date())
+        let dataWithLog = "\(Util.formattedTime(Date())):  \(log)"
         writeToFile(file: file, text: dataWithLog)
     }
     

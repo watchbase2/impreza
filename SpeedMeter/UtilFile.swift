@@ -53,7 +53,7 @@ class Util {
     static func formattedTime (_ date:Date) -> String {
         let formatter = DateFormatter()
         
-        formatter.dateFormat = "HH:mm"
+        formatter.dateFormat = "HH:mm:ss"
         formatter.locale = Locale(identifier: "ja_JP")
         
         let normalizedStr = formatter.string(from: date)
