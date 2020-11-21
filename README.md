@@ -13,6 +13,7 @@ BLE対応のOBD2アダプターから取得した情報をiPhone上に表示す�
 ＜参考＞
 OBD2アダプターは以下のものを利用しました。
 https://www.amazon.co.jp/gp/product/B00QJRYMFC/ref=ppx_yo_dt_b_asin_title_o02_s00?ie=UTF8&psc=1
+
 車は、スバルのインプレッサ （2016年モデル）です。
 
 HUDディスプレイは以下のものを利用しました。
